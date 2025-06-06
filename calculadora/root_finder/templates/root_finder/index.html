@@ -1,0 +1,134 @@
+{% load widget_tweaks %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Raíces (Polinomios)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body class="bg-cyan-100 font-sans min-h-screen flex items-center justify-center">
+    <div class="container mx-auto p-4 flex justify-center items-center min-h-screen">
+        <div class="bg-gray-100 p-8 rounded-3xl shadow-2xl max-w-xl w-full">
+            <h1 class="text-4xl font-bold mb-8 text-center" style="color: #097572;">Calculadora de Raíces (Polinomios)</h1>
+            
+            <form method="post" class="mb-0">
+                {% csrf_token %}
+                <div class="mb-4">
+                    <label for="{{ form.polynomial.id_for_label }}" class="block font-semibold mb-1 text-cyan-700 drop-shadow">Ingresa el Polinomio:</label>
+                    {{ form.polynomial|add_class:"shadow-md rounded-lg border border-gray-300 px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-cyan-400" }}
+                    <p class="text-sm text-gray-500">{{ form.polynomial.help_text }}</p>
+                    {{ form.polynomial.errors }}
+                </div>
+                <div class="mb-4">
+                    <label for="{{ form.method.id_for_label }}" class="block font-semibold mb-1 text-cyan-700 drop-shadow">Método Numérico a Calcular:</label>
+                    {{ form.method|add_class:"shadow-md rounded-lg border border-gray-300 px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-cyan-400" }}
+                </div>
+                <div class="mb-4 flex gap-4">
+                    <div class="w-1/2" id="field-a">
+                        <label for="{{ form.a.id_for_label }}" class="block font-semibold mb-1 text-cyan-700 drop-shadow">Extremo inferior [a]:</label>
+                        {{ form.a|add_class:"shadow-md rounded-lg border border-gray-300 px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-cyan-400" }}
+                    </div>
+                    <div class="w-1/2" id="field-b">
+                        <label for="{{ form.b.id_for_label }}" class="block font-semibold mb-1 text-cyan-700 drop-shadow">Extremo superior [b]:</label>
+                        {{ form.b|add_class:"shadow-md rounded-lg border border-gray-300 px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-cyan-400" }}
+                    </div>
+                </div>
+                <div class="mb-4" id="field-x0">
+                    <label for="{{ form.x0.id_for_label }}" class="block font-semibold mb-1 text-cyan-700 drop-shadow">Valor inicial (x₀):</label>
+                    {{ form.x0|add_class:"shadow-md rounded-lg border border-gray-300 px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-cyan-400" }}
+                </div>
+                <div class="mb-4">
+                    <label for="{{ form.tolerance.id_for_label }}" class="block font-semibold mb-1 text-cyan-700 drop-shadow">Tolerancia:</label>
+                    {{ form.tolerance|add_class:"shadow-md rounded-lg border border-gray-300 px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-cyan-400" }}
+                </div>
+                <div class="mb-4">
+                    <label for="{{ form.max_iterations.id_for_label }}" class="block font-semibold mb-1 text-cyan-700 drop-shadow">Número de iteraciones:</label>
+                    {{ form.max_iterations|add_class:"shadow-md rounded-lg border border-gray-300 px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-cyan-400" }}
+                </div>
+                <button type="submit"
+                    class="w-full text-lg font-semibold text-white py-2 rounded-lg transition shadow-md"
+                    style="background: linear-gradient(90deg, #1ccfc9 0%, #f842e9 100%);">
+                    Calcular
+                </button>
+            </form>
+            
+            {% if error_message %}
+                <div class="mt-4 p-4 bg-red-100 text-red-700 rounded">
+                    {{ error_message }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% if result %}
+        <div class="mt-8 max-w-4xl mx-auto">
+            <h2 class="text-xl font-bold mb-4">Resultado</h2>
+            <p class="font-bold mb-4" style="color: #6554fa;">Raíz aproximada: {{ result|floatformat:6 }}</p>
+            
+            {% if table_data %}
+                <h3 class="text-lg font-semibold mb-2">Tabla de Iteraciones</h3>
+                <table class="w-full border-collapse border border-gray-300">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th class="border border-gray-300 p-2">Iteración</th>
+                            {% if table_data.0.a %}
+                                <th class="border border-gray-300 p-2">a</th>
+                                <th class="border border-gray-300 p-2">b</th>
+                                <th class="border border-gray-300 p-2">c</th>
+                                <th class="border border-gray-300 p-2">f(c)</th>
+                            {% else %}
+                                <th class="border border-gray-300 p-2">x_n</th>
+                                <th class="border border-gray-300 p-2">f(x_n)</th>
+                                <th class="border border-gray-300 p-2">f'(x_n)</th>
+                                {% if table_data.0.d2f_x_n %}
+                                    <th class="border border-gray-300 p-2">f''(x_n)</th>
+                                {% endif %}
+                            {% endif %}
+                            <th class="border border-gray-300 p-2">Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in table_data|slice:":5" %}
+                            <tr class="bg-white">
+                                <td class="border border-gray-300 p-2">{{ row.iteration }}</td>
+                                {% if row.a %}
+                                    <td class="border border-gray-300 p-2">{{ row.a|floatformat:6 }}</td>
+                                    <td class="border border-gray-300 p-2">{{ row.b|floatformat:6 }}</td>
+                                    <td class="border border-gray-300 p-2">{{ row.c|floatformat:6 }}</td>
+                                    <td class="border border-gray-300 p-2">{{ row.f_c|floatformat:6 }}</td>
+                                {% else %}
+                                    <td class="border border-gray-300 p-2">{{ row.x_n|floatformat:6 }}</td>
+                                    <td class="border border-gray-300 p-2">{{ row.f_x_n|floatformat:6 }}</td>
+                                    <td class="border border-gray-300 p-2">{{ row.df_x_n|floatformat:6 }}</td>
+                                    {% if row.d2f_x_n %}
+                                        <td class="border border-gray-300 p-2">{{ row.d2f_x_n|floatformat:6 }}</td>
+                                    {% endif %}
+                                {% endif %}
+                                <td class="border border-gray-300 p-2">{{ row.error|floatformat:6 }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+            
+            {% if plot_div %}
+                <h3 class="text-lg font-semibold mt-4 mb-2">Gráfica</h3>
+                {{ plot_div|safe }}
+            {% endif %}
+        </div>
+    {% endif %}
+    <script>
+        function updateFields() {
+            const method = document.getElementById('id_method').value;
+            document.getElementById('field-a').style.display = (method === 'bisection') ? 'block' : 'none';
+            document.getElementById('field-b').style.display = (method === 'bisection') ? 'block' : 'none';
+            document.getElementById('field-x0').style.display = (method === 'newton' || method === 'modified_newton') ? 'block' : 'none';
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('id_method').addEventListener('change', updateFields);
+            updateFields();
+        });
+    </script>
+</body>
+</html>
